@@ -34,7 +34,7 @@ H.skip_timeout = false
 H.skip_sync = false
 
 -- Helper functionality =======================================================
--- Settings -------------------------------------------------------------------
+
 H.create_autocommands = function()
 	local gr = vim.api.nvim_create_augroup("NeoVimGit", {})
 
@@ -658,49 +658,9 @@ H.git_cli_output = function(args, cwd, env)
 end
 
 -- Validators -----------------------------------------------------------------
-H.validate_buf_id = function(x)
-	if x == nil or x == 0 then
-		return vim.api.nvim_get_current_buf()
-	end
-	if not (type(x) == "number" and vim.api.nvim_buf_is_valid(x)) then
-		H.error("`buf_id` should be `nil` or valid buffer id.")
-	end
-	return x
-end
-
-H.normalize_split_opt = function(x, x_name)
-	if x == "auto" then
-		-- Show in same tabpage if only neovimgit buffers visible. Otherwise in new.
-		for _, win_id in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-			local win_buf_id = vim.api.nvim_win_get_buf(win_id)
-			local win_buf_name = vim.api.nvim_buf_get_name(win_buf_id)
-			local is_neovimgit_win = win_buf_name:find("^neovimgit://%d+/") ~= nil
-			local is_normal_win = vim.api.nvim_win_get_config(win_id).relative == ""
-			if not is_neovimgit_win and is_normal_win then
-				return "tab"
-			end
-		end
-		return "vertical"
-	end
-	if x == "horizontal" or x == "vertical" or x == "tab" then
-		return x
-	end
-	H.error("`" .. x_name .. '` should be one of "auto", "horizontal", "vertical", "tab"')
-end
-
-H.normalize_range_lines = function(line_start, line_end)
-	if line_start == nil and line_end == nil then
-		line_start = vim.fn.line(".")
-		local is_visual = vim.tbl_contains({ "v", "V", "\22" }, vim.fn.mode())
-		line_end = is_visual and vim.fn.line("v") or vim.fn.line(".")
-		line_start, line_end = math.min(line_start, line_end), math.max(line_start, line_end)
-	end
-
-	if not (type(line_start) == "number" and type(line_end) == "number" and line_start <= line_end) then
-		H.error("`line_start` and `line_end` should be non-decreasing numbers.")
-	end
-	return line_start, line_end
-end
+H.validate_buf_id = U.validate_buf_id
+H.normalize_split_opt = U.normalize_split_opt
+H.normalize_range_lines = U.normalize_range_lines
 
 -- Enabling -------------------------------------------------------------------
 H.is_buf_enabled = function(buf_id)
@@ -1149,17 +1109,9 @@ H.deps_pos_to_source = function()
 end
 
 -- Folding --------------------------------------------------------------------
-H.is_hunk_header = function(lnum)
-	return vim.fn.getline(lnum):find("^@@.*@@") ~= nil
-end
-
-H.is_log_entry_header = function(lnum)
-	return vim.fn.getline(lnum):find("^commit ") ~= nil
-end
-
-H.is_file_entry_header = function(lnum)
-	return vim.fn.getline(lnum):find("^diff %-%-git") ~= nil
-end
+H.is_hunk_header = U.is_hunk_header
+H.is_log_entry_header = U.is_log_entry_header
+H.is_file_entry_header = U.is_file_entry_header
 
 -- CLI ------------------------------------------------------------------------
 H.git_cmd = function(args)
@@ -1167,15 +1119,7 @@ H.git_cmd = function(args)
 	return { C.job.git_executable, "-c", "gc.auto=0", unpack(args) }
 end
 
-H.make_spawn_env = function(env_vars)
-	-- Setup all environment variables (`vim.loop.spawn()` by default has none)
-	local environ = vim.tbl_deep_extend("force", vim.loop.os_environ(), env_vars)
-	local res = {}
-	for k, v in pairs(environ) do
-		table.insert(res, string.format("%s=%s", k, tostring(v)))
-	end
-	return res
-end
+H.make_spawn_env = U.make_spawn_env
 
 H.cli_run = function(command, cwd, on_done, opts)
 	local spawn_opts = opts or {}
@@ -1230,37 +1174,10 @@ H.cli_run = function(command, cwd, on_done, opts)
 	return res
 end
 
-H.cli_read_stream = function(stream, feed)
-	local callback = function(err, data)
-		if err then
-			return table.insert(feed, 1, "ERROR: " .. err)
-		end
-		if data ~= nil then
-			return table.insert(feed, data)
-		end
-		stream:close()
-	end
-	stream:read_start(callback)
-end
-
-H.cli_stream_tostring = function(stream)
-	return (table.concat(stream):gsub("\n+$", ""))
-end
-
-H.cli_err_notify = function(code, out, err)
-	local should_stop = code ~= 0
-	if should_stop then
-		H.notify(err .. (out == "" and "" or ("\n" .. out)), "ERROR")
-	end
-	if not should_stop and err ~= "" then
-		H.notify(err, "WARN")
-	end
-	return should_stop
-end
-
-H.cli_escape = function(x)
-	return (string.gsub(x, "([ \\])", "\\%1"))
-end
+H.cli_read_stream = U.cli_read_stream
+H.cli_stream_tostring = U.cli_stream_tostring
+H.cli_err_notify = U.cli_err_notify
+H.cli_escape = U.cli_escape
 
 -- Utilities ------------------------------------------------------------------
 H.error = U.error
