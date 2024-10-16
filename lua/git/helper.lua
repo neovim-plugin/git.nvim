@@ -35,7 +35,7 @@ H.skip_sync = false
 
 -- Helper functionality =======================================================
 
-H.create_autocommands = function()
+function H.create_autocommands()
 	local gr = vim.api.nvim_create_augroup("NeoVimGit", {})
 
 	local au = function(event, pattern, callback, desc)
@@ -47,11 +47,11 @@ H.create_autocommands = function()
 	au("BufEnter", "*", H.auto_enable, "Enable Git tracking")
 end
 
-H.is_disabled = function(buf_id)
+function H.is_disabled(buf_id)
 	return vim.g.neovimgit_disable == true or vim.b[buf_id or 0].neovimgit_disable == true
 end
 
-H.create_user_commands = function()
+function H.create_user_commands()
 	local opts = { bang = true, nargs = "+", complete = H.command_complete, desc = "Execute Git command" }
 	vim.api.nvim_create_user_command("Git", H.command_impl, opts)
 end
@@ -66,7 +66,7 @@ H.auto_enable = vim.schedule_wrap(function(data)
 end)
 
 -- Command --------------------------------------------------------------------
-H.command_impl = function(input)
+function H.command_impl(input)
 	if not H.has_git then
 		return H.notify("There is no `" .. C.job.git_executable .. "` executable", "ERROR")
 	end
@@ -111,7 +111,7 @@ H.command_impl = function(input)
 end
 
 --stylua: ignore
-H.ensure_git_subcommands = function()
+function H.ensure_git_subcommands()
   if H.git_subcommands ~= nil then return end
   local git_subcommands = {}
 
@@ -193,7 +193,7 @@ H.ensure_git_subcommands = function()
   H.git_subcommands = git_subcommands
 end
 
-H.ensure_git_editor = function(mods)
+function H.ensure_git_editor(mods)
 	if H.git_editor_config == nil or not vim.fn.filereadable(H.git_editor_config) == 0 then
 		H.git_editor_config = vim.fn.tempname()
 	end
@@ -230,12 +230,12 @@ H.ensure_git_editor = function(mods)
 	vim.fn.writefile(lines, H.git_editor_config)
 end
 
-H.get_git_cwd = function()
+function H.get_git_cwd()
 	local buf_cache = H.cache[vim.api.nvim_get_current_buf()] or {}
 	return buf_cache.root or vim.fn.getcwd()
 end
 
-H.command_make_on_done = function(cmd_data, is_done_track)
+function H.command_make_on_done(cmd_data, is_done_track)
 	return vim.schedule_wrap(function(code, out, err)
 		-- Register that command is done executing (to enable sync execution)
 		is_done_track.done = true
@@ -259,7 +259,7 @@ H.command_make_on_done = function(cmd_data, is_done_track)
 	end)
 end
 
-H.command_show_stdout = function(cmd_data)
+function H.command_show_stdout(cmd_data)
 	local stdout, mods, subcommand = cmd_data.stdout, cmd_data.cmd_input.mods, cmd_data.git_subcommand
 	if stdout == "" or (mods:find("silent") ~= nil and mods:find("unsilent") == nil) then
 		return
@@ -280,7 +280,7 @@ H.command_show_stdout = function(cmd_data)
 	H.trigger_event("NeoVimGitCommandSplit", cmd_data)
 end
 
-H.command_parse_subcommand = function(command)
+function H.command_parse_subcommand(command)
 	local res
 	for _, cmd in ipairs(command) do
 		if res == nil and vim.tbl_contains(H.git_subcommands.supported, cmd) then
@@ -290,7 +290,7 @@ H.command_parse_subcommand = function(command)
 	return H.git_subcommands.alias[res] or res
 end
 
-H.command_complete = function(_, line, col)
+function H.command_complete(_, line, col)
 	-- Compute completion base manually to be "at cursor" and respect `\ `
 	local base = H.get_complete_base(line:sub(1, col))
 	local candidates, compl_type = H.command_get_complete_candidates(line, col, base)
@@ -303,7 +303,7 @@ H.command_complete = function(_, line, col)
 	end, candidates)
 end
 
-H.get_complete_base = function(line)
+function H.get_complete_base(line)
 	local from, _, res = line:find("(%S*)$")
 	while from ~= nil do
 		local cur_from, _, cur_res = line:sub(1, from - 1):find("(%S*\\ )$")
@@ -315,7 +315,7 @@ H.get_complete_base = function(line)
 	return (res:gsub([[\ ]], " "))
 end
 
-H.command_get_complete_candidates = function(line, col, base)
+function H.command_get_complete_candidates(line, col, base)
 	H.ensure_git_subcommands()
 
 	-- Determine current Git subcommand as the earliest present supported one
@@ -354,7 +354,7 @@ H.command_get_complete_candidates = function(line, col, base)
 	return complete_targets(cwd, base, line)
 end
 
-H.command_complete_option = function(command)
+function H.command_complete_option(command)
 	local cached_candidates = H.git_subcommands.options[command]
 	if cached_candidates == nil then
 		return {}
@@ -444,7 +444,7 @@ H.command_complete_option = function(command)
 	return res, "option"
 end
 
-H.parse_options = function(map, line)
+function H.parse_options(map, line)
 	-- Options are standalone words starting as "-xxx" or "--xxx"
 	-- Include possible "=" at the end indicating mandatory value
 	line:gsub("%s(%-[-%w][-%w]*=?)", function(match)
@@ -457,7 +457,7 @@ H.parse_options = function(map, line)
 	end)
 end
 
-H.command_complete_path = function(cwd, base)
+function H.command_complete_path(cwd, base)
 	-- Treat base only as path relative to the command's cwd
 	cwd = cwd:gsub("/+$", "") .. "/"
 	local cwd_len = cwd:len()
@@ -497,7 +497,7 @@ H.command_complete_path = function(cwd, base)
 	return res, "path"
 end
 
-H.command_complete_pullpush = function(cwd, _, line)
+function H.command_complete_pullpush(cwd, _, line)
 	-- Suggest remotes at `Git push |` and `Git push or|`, otherwise - references
 	-- Ignore options when deciding which suggestion to compute
 	local _, n_words = line:gsub(" (%-%S+)", ""):gsub("%S+ ", "")
@@ -507,7 +507,7 @@ H.command_complete_pullpush = function(cwd, _, line)
 	return H.git_cli_output({ "rev-parse", "--symbolic", "--branches", "--tags" }, cwd), "ref"
 end
 
-H.make_git_cli_complete = function(args, complete_type)
+function H.make_git_cli_complete(args, complete_type)
 	return function(cwd, _)
 		return H.git_cli_output(args, cwd), complete_type
 	end
@@ -557,7 +557,7 @@ H.command_complete_subcommand_targets = {
   end,
 }
 
-H.ensure_mods_is_split = function(mods)
+function H.ensure_mods_is_split(mods)
 	if not H.mods_is_split(mods) then
 		local split_val = H.normalize_split_opt(C.command.split, "`config.command.split`")
 		mods = split_val .. " " .. mods
@@ -565,13 +565,10 @@ H.ensure_mods_is_split = function(mods)
 	return mods
 end
 
--- NOTE: `mods` is already expanded, so this also covers abbreviated mods
-H.mods_is_split = function(mods)
-	return mods:find("vertical") or mods:find("horizontal") or mods:find("tab")
-end
+H.mods_is_split = U.mods_is_split
 
 -- Show stdout ----------------------------------------------------------------
-H.show_in_split = function(mods, lines, subcmd, name)
+function H.show_in_split(mods, lines, subcmd, name)
 	-- Create a target window split
 	mods = H.ensure_mods_is_split(mods)
 	local win_source = vim.api.nvim_get_current_win()
@@ -617,35 +614,9 @@ H.show_in_split = function(mods, lines, subcmd, name)
 	return win_source, win_stdout
 end
 
-H.define_neovimgit_window = function(cleanup)
-	local buf_id, win_id = vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win()
-	vim.bo.swapfile, vim.bo.buflisted = false, false
+H.define_neovimgit_window = U.define_neovimgit_window
 
-	-- Define action to finish editing Git related file
-	local finish_au_id
-	local finish = function(data)
-		local should_close = data.buf == buf_id or (data.event == "WinClosed" and tonumber(data.match) == win_id)
-		if not should_close then
-			return
-		end
-
-		pcall(vim.api.nvim_del_autocmd, finish_au_id)
-		pcall(vim.api.nvim_win_close, win_id, true)
-		vim.schedule(function()
-			pcall(vim.api.nvim_buf_delete, buf_id, { force = true })
-		end)
-
-		if vim.is_callable(cleanup) then
-			vim.schedule(cleanup)
-		end
-	end
-	-- - Use `nested` to allow other events (`WinEnter` for 'statusline.nvim')
-	local events = { "WinClosed", "BufDelete", "BufWipeout", "VimLeave" }
-	local opts = { nested = true, callback = finish, desc = "Cleanup window and buffer" }
-	finish_au_id = vim.api.nvim_create_autocmd(events, opts)
-end
-
-H.git_cli_output = function(args, cwd, env)
+function H.git_cli_output(args, cwd, env)
 	if cwd ~= nil and vim.fn.isdirectory(cwd) ~= 1 then
 		return {}
 	end
@@ -663,11 +634,11 @@ H.normalize_split_opt = U.normalize_split_opt
 H.normalize_range_lines = U.normalize_range_lines
 
 -- Enabling -------------------------------------------------------------------
-H.is_buf_enabled = function(buf_id)
+function H.is_buf_enabled(buf_id)
 	return H.cache[buf_id] ~= nil and vim.api.nvim_buf_is_valid(buf_id)
 end
 
-H.setup_buf_behavior = function(buf_id)
+function H.setup_buf_behavior(buf_id)
 	local augroup = vim.api.nvim_create_augroup("NeoVimGitBuffer" .. buf_id, { clear = true })
 	H.cache[buf_id].augroup = augroup
 
@@ -712,7 +683,7 @@ H.setup_buf_behavior = function(buf_id)
 end
 
 -- Tracking -------------------------------------------------------------------
-H.start_tracking = function(buf_id, path)
+function H.start_tracking(buf_id, path)
 	local command = H.git_cmd({ "rev-parse", "--path-format=absolute", "--git-dir", "--show-toplevel" })
 
 	-- If path is not in Git, disable buffer but make sure that it will not try
@@ -753,7 +724,7 @@ H.start_tracking = function(buf_id, path)
 	H.cli_run(command, vim.fn.fnamemodify(path, ":h"), on_done)
 end
 
-H.setup_repo_watch = function(buf_id, repo)
+function H.setup_repo_watch(buf_id, repo)
 	local repo_cache = H.repos[repo] or {}
 
 	-- Ensure repo is watched
@@ -790,7 +761,7 @@ H.setup_repo_watch = function(buf_id, repo)
 	repo_cache.buffers = repo_buffers
 end
 
-H.teardown_repo_watch = function(repo)
+function H.teardown_repo_watch(repo)
 	if H.repos[repo] == nil then
 		return
 	end
@@ -798,7 +769,7 @@ H.teardown_repo_watch = function(repo)
 	pcall(vim.loop.timer_stop, H.repos[repo].timer)
 end
 
-H.setup_path_watch = function(buf_id, repo)
+function H.setup_path_watch(buf_id, repo)
 	if not H.is_buf_enabled(buf_id) then
 		return
 	end
@@ -811,7 +782,7 @@ H.setup_path_watch = function(buf_id, repo)
 	vim.api.nvim_create_autocmd({ "BufWritePost", "FileChangedShellPost" }, opts)
 end
 
-H.on_repo_change = function(repo)
+function H.on_repo_change(repo)
 	if H.repos[repo] == nil then
 		return
 	end
@@ -839,7 +810,7 @@ H.on_repo_change = function(repo)
 	end
 end
 
-H.update_git_head = function(root, bufs)
+function H.update_git_head(root, bufs)
 	local command = H.git_cmd({ "rev-parse", "HEAD", "--abbrev-ref", "HEAD" })
 
 	local on_done = vim.schedule_wrap(function(code, out, err)
@@ -867,7 +838,7 @@ H.update_git_head = function(root, bufs)
 	H.cli_run(command, root, on_done)
 end
 
-H.update_git_in_progress = function(repo, bufs)
+function H.update_git_in_progress(repo, bufs)
 	-- Get data about what process is in progress
 	local in_progress = {}
 	if H.is_fs_present(repo .. "/BISECT_LOG") then
@@ -899,7 +870,7 @@ H.update_git_in_progress = function(repo, bufs)
 	H.redrawstatus()
 end
 
-H.update_git_status = function(root, bufs)
+function H.update_git_status(root, bufs)
 	local command =
 		H.git_cmd({ "status", "--verbose", "--untracked-files=all", "--ignored", "--porcelain", "-z", "--" })
 	local root_len, path_data = string.len(root), {}
@@ -939,7 +910,7 @@ H.update_git_status = function(root, bufs)
 	H.cli_run(command, root, on_done)
 end
 
-H.update_buf_data = function(buf_id, new_data)
+function H.update_buf_data(buf_id, new_data)
 	if not H.is_buf_enabled(buf_id) then
 		return
 	end
@@ -973,140 +944,14 @@ H.update_buf_data = function(buf_id, new_data)
 end
 
 -- History navigation ---------------------------------------------------------
--- Assuming buffer contains unified combined diff (with "commit" header),
--- compute path, line number, and commit of both "before" and "after" files.
--- Allow cursor to be between "--- a/xxx" line and last line of a hunk.
-H.diff_pos_to_source = function()
-	local lines, lnum = vim.api.nvim_buf_get_lines(0, 0, -1, false), vim.fn.line(".")
+H.diff_pos_to_source = U.diff_pos_to_source
+H.diff_parse_paths = U.diff_parse_paths
+H.diff_parse_hunk = U.diff_parse_hunk
+H.diff_parse_commits = U.diff_parse_commits
 
-	local res = { init_prefix = lines[lnum]:sub(1, 1) }
-	local paths_lnum = H.diff_parse_paths(res, lines, lnum)
-	local hunk_lnum = H.diff_parse_hunk(res, lines, lnum)
-	local commit_lnum = H.diff_parse_commits(res, lines, lnum)
-
-	-- Try fall back to inferring target commits from 'git.nvim' buffer name
-	if res.commit_before == nil or res.commit_after == nil then
-		H.diff_parse_bufname(res)
-	end
-
-	local all_present = res.lnum_after and res.path_after and res.commit_after
-	local is_in_order = commit_lnum <= paths_lnum and paths_lnum <= hunk_lnum
-	if not (all_present and is_in_order) then
-		return nil
-	end
-
-	return res
-end
-
-H.diff_parse_paths = function(out, lines, lnum)
-	local pattern_before, pattern_after = "^%-%-%- a/(.*)$", "^%+%+%+ b/(.*)$"
-
-	-- Allow placing cursor directly on path defining lines
-	local cur_line = lines[lnum]
-	local path_before, path_after = string.match(cur_line, pattern_before), string.match(cur_line, pattern_after)
-	if path_before ~= nil or path_after ~= nil then
-		out.path_before = path_before or string.match(lines[lnum - 1] or "", pattern_before)
-		out.path_after = path_after or string.match(lines[lnum + 1] or "", pattern_after)
-		out.lnum_before, out.lnum_after = 1, 1
-	else
-		-- Iterate lines upward to find path patterns
-		while out.path_after == nil and lnum > 0 do
-			out.path_after = string.match(lines[lnum] or "", pattern_after)
-			lnum = lnum - 1
-		end
-		out.path_before = string.match(lines[lnum] or "", pattern_before)
-	end
-
-	return lnum
-end
-
-H.diff_parse_hunk = function(out, lines, lnum)
-	if out.lnum_after ~= nil then
-		return lnum
-	end
-
-	local offsets = { [" "] = 0, ["-"] = 0, ["+"] = 0 }
-	while lnum > 0 do
-		local prefix = lines[lnum]:sub(1, 1)
-		if not (prefix == " " or prefix == "-" or prefix == "+") then
-			break
-		end
-		offsets[prefix] = offsets[prefix] + 1
-		lnum = lnum - 1
-	end
-
-	local hunk_start_before, hunk_start_after = string.match(lines[lnum] or "", "^@@ %-(%d+),?%d* %+(%d+),?%d* @@")
-	if hunk_start_before ~= nil then
-		out.lnum_before = math.max(1, tonumber(hunk_start_before) + offsets[" "] + offsets["-"] - 1)
-		out.lnum_after = math.max(1, tonumber(hunk_start_after) + offsets[" "] + offsets["+"] - 1)
-	end
-	return lnum
-end
-
-H.diff_parse_commits = function(out, lines, lnum)
-	while out.commit_after == nil and lnum > 0 do
-		out.commit_after = string.match(lines[lnum], "^commit (%x+)$")
-		lnum = lnum - 1
-	end
-	if out.commit_after ~= nil then
-		out.commit_before = out.commit_after .. "~"
-	end
-	return lnum + 1
-end
-
-H.diff_parse_bufname = function(out)
-	local buf_name = vim.api.nvim_buf_get_name(0)
-	local diff_command = string.match(buf_name, "^neovimgit://%d+/.* diff ?(.*)$")
-	if diff_command == nil then
-		return
-	end
-
-	-- Work with output of common `:Git diff` commands
-	diff_command = vim.trim(diff_command)
-	-- `Git diff` - compares index and work tree
-	if diff_command == "" then
-		out.commit_before, out.commit_after = ":0", true
-	end
-	-- `Git diff --cached` - compares HEAD and index
-	if diff_command == "--cached" then
-		out.commit_before, out.commit_after = "HEAD", ":0"
-	end
-	-- `Git diff HEAD` - compares commit and work tree
-	if diff_command:find("^[^-]%S*$") ~= nil then
-		out.commit_before, out.commit_after = diff_command, true
-	end
-end
-
-H.parse_diff_source_buf_name = function(buf_name)
-	return string.match(buf_name, "^neovimgit://%d+/.*show (%x+~?):(.*)$")
-end
-
-H.deps_pos_to_source = function()
-	local lines = vim.api.nvim_buf_get_lines(0, 0, vim.fn.line("."), false)
-	-- Do nothing if on the title (otherwise it operates on previous plugin info)
-	if lines[#lines]:find("^[%+%-!]") ~= nil then
-		return
-	end
-
-	-- Locate lines with commit and repo path data
-	local commit, commit_lnum = nil, #lines
-	while commit == nil and commit_lnum >= 1 do
-		local l = lines[commit_lnum]
-		commit = l:match("^[><] (%x%x%x%x%x%x%x%x*) |") or l:match("^State[^:]*: %s*(%x+)")
-		commit_lnum = commit_lnum - 1
-	end
-
-	local cwd, cwd_lnum = nil, #lines
-	while cwd == nil and cwd_lnum >= 1 do
-		cwd, cwd_lnum = lines[cwd_lnum]:match("^Path: %s*(%S+)$"), cwd_lnum - 1
-	end
-
-	-- Do nothing if something is not found or path corresponds to next repo
-	if commit == nil or cwd == nil or commit_lnum <= cwd_lnum then
-		return
-	end
-	return commit, cwd
-end
+H.diff_parse_bufname = U.diff_parse_bufname
+H.parse_diff_source_buf_name = U.parse_diff_source_buf_name
+H.deps_pos_to_source = U.deps_pos_to_source
 
 -- Folding --------------------------------------------------------------------
 H.is_hunk_header = U.is_hunk_header
@@ -1114,14 +959,14 @@ H.is_log_entry_header = U.is_log_entry_header
 H.is_file_entry_header = U.is_file_entry_header
 
 -- CLI ------------------------------------------------------------------------
-H.git_cmd = function(args)
+function H.git_cmd(args)
 	-- Use '-c gc.auto=0' to disable `stderr` "Auto packing..." messages
 	return { C.job.git_executable, "-c", "gc.auto=0", unpack(args) }
 end
 
 H.make_spawn_env = U.make_spawn_env
 
-H.cli_run = function(command, cwd, on_done, opts)
+function H.cli_run(command, cwd, on_done, opts)
 	local spawn_opts = opts or {}
 	local executable, args = command[1], vim.list_slice(command, 2, #command)
 	local process, stdout, stderr = nil, vim.loop.new_pipe(), vim.loop.new_pipe()
